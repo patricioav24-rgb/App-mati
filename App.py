@@ -10,7 +10,7 @@ except Exception:
 from datetime import datetime
 
 # ===============================================
-# BASE DE RADIONÚCLIDOS (MESMA QUE TU CÓDIGO)
+# BASE DE RADIONÚCLIDOS
 # ===============================================
 RADIONUCLIDOS_DB = {
     "Tc-99m (MDP/HDP)": {
@@ -77,12 +77,10 @@ def actividad_con_decadencia(A0_mbq, T_half_hrs, t_min):
 # ===============================================
 # APP STREAMLIT
 # ===============================================
-st.title("🧪 NucleoCalc — Versión Streamlit")
+st.title("🧪 NucleoCalc ")
 st.write("Cálculo con T½ en **horas** igual que tu documento.")
 
-# -----------------------------------------------
 # Selección del radionúclido
-# -----------------------------------------------
 radion = st.selectbox("Radionúclido", list(RADIONUCLIDOS_DB.keys()))
 data = RADIONUCLIDOS_DB[radion]
 
@@ -97,13 +95,7 @@ with col3:
 
 st.markdown(f"**Notas:** {data['notes']}")
 
-# -----------------------------------------------
-# Tiempos
-# -----------------------------------------------
-st.subheader("Tiempo")
-
-# Inicializar en session_state para evitar que los valores por defecto se
-# recalculen en cada rerun (eso impide que el usuario cambie la hora).
+# Tiempos (session_state estable)
 if 'prep_date' not in st.session_state:
     st.session_state['prep_date'] = datetime.utcnow().date()
 if 'prep_time' not in st.session_state:
@@ -129,11 +121,8 @@ else:
 
 delta_min = (now_dt - prep_dt).total_seconds() / 60
 
-# -----------------------------------------------
 # Dosis
-# -----------------------------------------------
 st.subheader("Dosis")
-
 modo = st.radio("Modo de dosis", [
     "Usar dosis típica del radiofármaco",
     "MBq/kg (personalizado)",
@@ -144,9 +133,7 @@ peso = st.number_input("Peso (kg)", value=70.0)
 mbqkg = st.number_input("MBq/kg", value=4.0)
 fixed = st.number_input("Dosis fija (MBq)", value=900.0)
 
-# -----------------------------------------------
 # BOTÓN CALCULAR
-# -----------------------------------------------
 if st.button("Calcular"):
 
     lam = obtener_lambda(T_half)
@@ -179,49 +166,45 @@ if st.button("Calcular"):
     st.write(f"**Volumen total disponible:** {vol_total:.2f} mL")
     st.write(f"**Pacientes posibles:** {pacientes}")
 
-    # Detalle de cálculos (fórmulas aplicadas con valores)
-    st.markdown("### Detalle de cálculos — fórmulas y valores aplicados")
-    st.markdown(f"- T_{{1/2}} = {T_half} h = {T_half*60:.2f} min")
-    st.markdown(f"- λ = ln(2) / T_{{1/2}}(min) = 0.693 / {T_half*60:.2f} = {lam:.6e} min⁻¹")
-    st.markdown(f"- A(t) = A₀ · e^(-λ·t) = {A0} · e^(-{lam:.6e} · {delta_min:.1f}) = {At:.2f} MBq")
-    st.markdown(f"- Volumen por paciente = dosis / concentración = {dosis:.2f} / {conc:.2f} = {vol_paciente:.2f} mL")
-    st.markdown(f"- Volumen total disponible = A(t) / concentración = {At:.2f} / {conc:.2f} = {vol_total:.2f} mL")
-    st.markdown(f"- Pacientes posibles = floor(A(t) / dosis) = floor({At:.2f} / {dosis:.2f}) = {pacientes}")
+    # === LÍNEAS CON FÓRMULAS ===
+    lines = [
+        rf"$T_{{1/2}} = {T_half}~h = {T_half*60:.2f}~min$",
+        rf"$\lambda = \ln(2)/T_{{1/2}} = 0.693/{T_half*60:.2f} = {lam:.6e}~min^{{-1}}$",
+        rf"$A(t) = A_0 e^{{-\lambda t}} = {A0}\, e^{{-{lam:.6e}\cdot {delta_min:.1f}}} = {At:.2f}~MBq$",
+        rf"$Vol_{{pac}} = {dosis:.2f}/{conc:.2f} = {vol_paciente:.2f}~mL$",
+        rf"$Vol_{{total}} = {At:.2f}/{conc:.2f} = {vol_total:.2f}~mL$",
+        rf"$Pacientes = \left\lfloor {At:.2f}/{dosis:.2f} \right\rfloor = {pacientes}$"
+    ]
 
-    # Opción: mostrar como dibujo (imagen) las fórmulas aplicadas
-    if st.checkbox("Mostrar cálculo como dibujo", value=True):
-        lines = [
-            rf"$T_{{1/2}} = {T_half}~\mathrm{{h}} = {T_half*60:.2f}~\mathrm{{min}}$",
-            rf"$\lambda = \ln(2)/T_{{1/2}} = 0.693/{T_half*60:.2f} = {lam:.6e}~\mathrm{{min}}^{{-1}}$",
-            rf"$A(t) = A_0\,e^{{-\lambda t}} = {A0}\,e^{{-{lam:.6e}\cdot {delta_min:.1f}}} = {At:.2f}\,\mathrm{{MBq}}$",
-            rf"Volumen\ por\ paciente = \dfrac{{{dosis:.2f}}}{{{conc:.2f}}} = {vol_paciente:.2f}\ \mathrm{{mL}}$",
-            rf"Volumen\ total = \dfrac{{{At:.2f}}}{{{conc:.2f}}} = {vol_total:.2f}\ \mathrm{{mL}}$",
-            rf"Pacientes\ posibles = \left\lfloor\dfrac{{{At:.2f}}}{{{dosis:.2f}}}\right\rfloor = {pacientes}$",
-        ]
+    # === DIBUJO ESTILO PIZARRÓN ===
+    if HAS_MPL:
+        st.subheader(" Cálculo ")
 
-        if not HAS_MPL:
-            st.warning("Matplotlib no está instalado. Instálalo con `pip install matplotlib` para ver el dibujo; mostrando fórmula en LaTeX en su lugar.")
-            for ln in lines:
-                tex = ln
-                # Si la línea está delimitada con $, extraer el contenido
-                if tex.startswith("$") and tex.endswith("$"):
-                    tex = tex.strip("$")
-                st.markdown(f"$$ {tex} $$")
-        else:
-            fig_height = max(2, 0.7 * len(lines))
-            fig = plt.figure(figsize=(8, fig_height))
-            plt.axis('off')
-            y = 0.95
-            for ln in lines:
-                # Matplotlib no renderiza LaTeX inline perfectamente sin rc, pero esto funciona para texto
-                plt.text(0.01, y, ln, fontsize=14, va='top')
-                y -= 1.0 / (len(lines) + 1)
+        fig_height = max(3, 0.8 * len(lines))
+        fig = plt.figure(figsize=(10, fig_height))
 
-            buf = io.BytesIO()
-            plt.tight_layout()
-            fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-            buf.seek(0)
-            st.image(buf)
-            plt.close(fig)
+        # Fondo negro estilo pizarra
+        fig.patch.set_facecolor("#1a1a1a")
 
+        ax = fig.add_subplot(111)
+        ax.set_facecolor("#1a1a1a")
+        ax.axis('off')
 
+        y = 0.95
+        for ln in lines:
+            ax.text(
+                0.02, y, ln,
+                fontsize=22,
+                color="white",
+                va='top'
+            )
+            y -= 1.1 / (len(lines) + 1)
+
+        buf = io.BytesIO()
+        plt.tight_layout()
+        fig.savefig(buf, format='png', dpi=180, bbox_inches='tight', facecolor=fig.get_facecolor())
+        buf.seek(0)
+        st.image(buf)
+        plt.close(fig)
+    else:
+        st.warning("Matplotslib no está instalado. Instálalo con: pip install matplotlib")

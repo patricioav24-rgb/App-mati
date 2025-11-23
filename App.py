@@ -1,7 +1,12 @@
 import streamlit as st
 import math
 import io
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+    HAS_MPL = True
+except Exception:
+    plt = None
+    HAS_MPL = False
 from datetime import datetime
 
 # ===============================================
@@ -194,18 +199,29 @@ if st.button("Calcular"):
             rf"Pacientes\ posibles = \left\lfloor\dfrac{{{At:.2f}}}{{{dosis:.2f}}}\right\rfloor = {pacientes}$",
         ]
 
-        fig_height = max(2, 0.7 * len(lines))
-        fig = plt.figure(figsize=(8, fig_height))
-        plt.axis('off')
-        y = 0.95
-        for ln in lines:
-            plt.text(0.01, y, ln, fontsize=14, va='top')
-            y -= 1.0 / (len(lines) + 1)
+        if not HAS_MPL:
+            st.warning("Matplotlib no está instalado. Instálalo con `pip install matplotlib` para ver el dibujo; mostrando fórmula en LaTeX en su lugar.")
+            for ln in lines:
+                tex = ln
+                # Si la línea está delimitada con $, extraer el contenido
+                if tex.startswith("$") and tex.endswith("$"):
+                    tex = tex.strip("$")
+                st.markdown(f"$$ {tex} $$")
+        else:
+            fig_height = max(2, 0.7 * len(lines))
+            fig = plt.figure(figsize=(8, fig_height))
+            plt.axis('off')
+            y = 0.95
+            for ln in lines:
+                # Matplotlib no renderiza LaTeX inline perfectamente sin rc, pero esto funciona para texto
+                plt.text(0.01, y, ln, fontsize=14, va='top')
+                y -= 1.0 / (len(lines) + 1)
 
-        buf = io.BytesIO()
-        plt.tight_layout()
-        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-        buf.seek(0)
-        st.image(buf)
-        plt.close(fig)
+            buf = io.BytesIO()
+            plt.tight_layout()
+            fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+            buf.seek(0)
+            st.image(buf)
+            plt.close(fig)
+
 

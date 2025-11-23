@@ -1,5 +1,7 @@
 import streamlit as st
 import math
+import io
+import matplotlib.pyplot as plt
 from datetime import datetime
 
 # ===============================================
@@ -181,4 +183,29 @@ if st.button("Calcular"):
     st.markdown(f"- Volumen total disponible = A(t) / concentración = {At:.2f} / {conc:.2f} = {vol_total:.2f} mL")
     st.markdown(f"- Pacientes posibles = floor(A(t) / dosis) = floor({At:.2f} / {dosis:.2f}) = {pacientes}")
 
+    # Opción: mostrar como dibujo (imagen) las fórmulas aplicadas
+    if st.checkbox("Mostrar cálculo como dibujo", value=True):
+        lines = [
+            rf"$T_{{1/2}} = {T_half}~\mathrm{{h}} = {T_half*60:.2f}~\mathrm{{min}}$",
+            rf"$\lambda = \ln(2)/T_{{1/2}} = 0.693/{T_half*60:.2f} = {lam:.6e}~\mathrm{{min}}^{{-1}}$",
+            rf"$A(t) = A_0\,e^{{-\lambda t}} = {A0}\,e^{{-{lam:.6e}\cdot {delta_min:.1f}}} = {At:.2f}\,\mathrm{{MBq}}$",
+            rf"Volumen\ por\ paciente = \dfrac{{{dosis:.2f}}}{{{conc:.2f}}} = {vol_paciente:.2f}\ \mathrm{{mL}}$",
+            rf"Volumen\ total = \dfrac{{{At:.2f}}}{{{conc:.2f}}} = {vol_total:.2f}\ \mathrm{{mL}}$",
+            rf"Pacientes\ posibles = \left\lfloor\dfrac{{{At:.2f}}}{{{dosis:.2f}}}\right\rfloor = {pacientes}$",
+        ]
+
+        fig_height = max(2, 0.7 * len(lines))
+        fig = plt.figure(figsize=(8, fig_height))
+        plt.axis('off')
+        y = 0.95
+        for ln in lines:
+            plt.text(0.01, y, ln, fontsize=14, va='top')
+            y -= 1.0 / (len(lines) + 1)
+
+        buf = io.BytesIO()
+        plt.tight_layout()
+        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        buf.seek(0)
+        st.image(buf)
+        plt.close(fig)
 

@@ -1,12 +1,10 @@
 import streamlit as st
-import pandas as pd
 import math
-from datetime import datetime, date, time
+from datetime import datetime
 
 # ===============================================
-# BASE DE RADIONÚCLIDOS
+# BASE DE RADIONÚCLIDOS (MESMA QUE TU CÓDIGO)
 # ===============================================
-
 RADIONUCLIDOS_DB = {
     "Tc-99m (MDP/HDP)": {
         "half_life_hr": 6.01,
@@ -38,7 +36,7 @@ RADIONUCLIDOS_DB = {
         "default_conc": 74.0,
         "dose_typical_mbq": 150.0,
         "dose_type": "fija",
-        "notes": "100–200 MBq"
+        "notes": "I-131 diagnóstico"
     },
     "I-131 (terapia)": {
         "half_life_hr": 8.02 * 24,
@@ -46,7 +44,7 @@ RADIONUCLIDOS_DB = {
         "default_conc": 74.0,
         "dose_typical_mbq": 3700.0,
         "dose_type": "fija",
-        "notes": "Dosis terapéuticas"
+        "notes": "I-131 terapia"
     },
     "Personalizado": {
         "half_life_hr": None,
@@ -54,14 +52,13 @@ RADIONUCLIDOS_DB = {
         "default_conc": None,
         "dose_typical_mbq": None,
         "dose_type": None,
-        "notes": "Ingrese manualmente"
+        "notes": "Ingrese valores manualmente"
     }
 }
 
 # ===============================================
 # FUNCIONES
 # ===============================================
-
 def obtener_lambda(T_half_hrs):
     T_half_min = T_half_hrs * 60
     return math.log(2) / T_half_min
@@ -71,90 +68,117 @@ def actividad_con_decadencia(A0_mbq, T_half_hrs, t_min):
     return A0_mbq * math.exp(-lam * t_min)
 
 # ===============================================
-# INTERFAZ STREAMLIT
+# APP STREAMLIT
 # ===============================================
+st.title("🧪 NucleoCalc — Versión Streamlit")
+st.write("Cálculo con T½ en **horas** igual que tu documento.")
 
-st.title("🧪 NucleoCalc — Calculadora de Decaimiento Radiactivo")
-
-rad = st.selectbox("Radionúclido:", list(RADIONUCLIDOS_DB.keys()))
-
-data = RADIONUCLIDOS_DB[rad]
+# -----------------------------------------------
+# Selección del radionúclido
+# -----------------------------------------------
+radion = st.selectbox("Radionúclido", list(RADIONUCLIDOS_DB.keys()))
+data = RADIONUCLIDOS_DB[radion]
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    A0 = st.number_input("A₀ vial (MBq):", value=data["A0_vial_mbq"] if data["A0_vial_mbq"] else 0.0)
-
+    A0 = st.number_input("A₀ vial (MBq)", value=data["A0_vial_mbq"] or 0.0)
 with col2:
-    T_half = st.number_input("T½ (horas):", value=data["half_life_hr"] if data["half_life_hr"] else 0.0)
-
+    T_half = st.number_input("T½ (horas)", value=data["half_life_hr"] or 0.0)
 with col3:
-    conc = st.number_input("Concentración (MBq/mL):", value=data["default_conc"] if data["default_conc"] else 0.0)
+    conc = st.number_input("Concentración (MBq/mL)", value=data["default_conc"] or 1.0)
 
-# Tiempo
-st.subheader("⏱️ Tiempos")
+st.markdown(f"**Notas:** {data['notes']}")
 
-colA, colB = st.columns(2)
+# -----------------------------------------------
+# Tiempos
+# -----------------------------------------------
+st.subheader("Tiempo")
 
-with colA:
-    prep_date = st.date_input("Fecha preparación:", value=date.today())
-    prep_time = st.time_input("Hora preparación:", value=datetime.now().time())
+# Inicializar en session_state para evitar que los valores por defecto se
+# recalculen en cada rerun (eso impide que el usuario cambie la hora).
+if 'prep_date' not in st.session_state:
+    st.session_state['prep_date'] = datetime.utcnow().date()
+if 'prep_time' not in st.session_state:
+    st.session_state['prep_time'] = datetime.utcnow().time().replace(second=0, microsecond=0)
+if 'use_now' not in st.session_state:
+    st.session_state['use_now'] = True
+if 'now_date' not in st.session_state:
+    st.session_state['now_date'] = datetime.utcnow().date()
+if 'now_time' not in st.session_state:
+    st.session_state['now_time'] = datetime.utcnow().time().replace(second=0, microsecond=0)
 
-with colB:
-    now_date = st.date_input("Fecha actual:", value=date.today())
-    now_time = st.time_input("Hora actual:", value=datetime.now().time())
-
+prep_date = st.date_input("Fecha de preparación", value=st.session_state['prep_date'], key='prep_date')
+prep_time = st.time_input("Hora de preparación", value=st.session_state['prep_time'], key='prep_time')
 prep_dt = datetime.combine(prep_date, prep_time)
-now_dt = datetime.combine(now_date, now_time)
+
+use_now = st.checkbox("Usar hora actual UTC", value=st.session_state['use_now'], key='use_now')
+if use_now:
+    now_dt = datetime.utcnow()
+else:
+    now_date = st.date_input("Fecha actual", value=st.session_state['now_date'], key='now_date')
+    now_time = st.time_input("Hora actual", value=st.session_state['now_time'], key='now_time')
+    now_dt = datetime.combine(now_date, now_time)
 
 delta_min = (now_dt - prep_dt).total_seconds() / 60
 
+# -----------------------------------------------
 # Dosis
-st.subheader("💉 Dosis")
+# -----------------------------------------------
+st.subheader("Dosis")
 
-modo = st.radio("Tipo de dosis:", ["Típica", "MBq/kg", "Fija"])
+modo = st.radio("Modo de dosis", [
+    "Usar dosis típica del radiofármaco",
+    "MBq/kg (personalizado)",
+    "Dosis fija (personalizada)"
+])
 
-if modo == "MBq/kg":
-    mbqkg = st.number_input("MBq/kg:", value=4.0)
-    peso = st.number_input("Peso paciente (kg):", value=70.0)
-    dosis = mbqkg * peso
+peso = st.number_input("Peso (kg)", value=70.0)
+mbqkg = st.number_input("MBq/kg", value=4.0)
+fixed = st.number_input("Dosis fija (MBq)", value=900.0)
 
-elif modo == "Fija":
-    dosis = st.number_input("Dosis fija (MBq):", value=900.0)
-
-else:
-    if data["dose_type"] == "fija":
-        dosis = data["dose_typical_mbq"]
-    else:
-        peso = st.number_input("Peso (kg):", value=70.0)
-        dosis = data["dose_typical_mbq_per_kg"] * peso
-
-# ===============================================
-# CÁLCULOS
-# ===============================================
-
+# -----------------------------------------------
+# BOTÓN CALCULAR
+# -----------------------------------------------
 if st.button("Calcular"):
+
     lam = obtener_lambda(T_half)
     At = actividad_con_decadencia(A0, T_half, delta_min)
 
-    vol_px = dosis / conc
+    # Dosis final
+    if modo == "Usar dosis típica del radiofármaco":
+        if data["dose_type"] == "fija":
+            dosis = data["dose_typical_mbq"]
+        else:
+            dosis = data["dose_typical_mbq_per_kg"] * peso
+    elif modo == "MBq/kg (personalizado)":
+        dosis = mbqkg * peso
+    else:
+        dosis = fixed
+
+    vol_paciente = dosis / conc
     vol_total = At / conc
-    pacientes_posibles = int(At // dosis)
+    pacientes = int(At // dosis)
 
-    st.subheader("📊 Resultados")
+    st.success("Cálculo realizado correctamente")
 
-    st.write(f"**Actividad actual A(t):** {At:.2f} MBq")
-    st.write(f"**λ:** {lam:.6e} (min⁻¹)")
+    st.subheader("Resultados")
+    st.write(f"**λ (min⁻¹):** {lam:.6e}")
     st.write(f"**Tiempo transcurrido:** {delta_min:.1f} min")
+    st.write(f"**Actividad A(t):** {At:.2f} MBq")
     st.write("---")
-    st.write(f"**Dosis paciente:** {dosis:.2f} MBq")
-    st.write(f"**Volumen por paciente:** {vol_px:.2f} mL")
+    st.write(f"**Dosis por paciente:** {dosis:.1f} MBq")
+    st.write(f"**Volumen por paciente:** {vol_paciente:.2f} mL")
     st.write(f"**Volumen total disponible:** {vol_total:.2f} mL")
-    st.write(f"**Pacientes posibles:** {pacientes_posibles}")
-    st.write("---")
+    st.write(f"**Pacientes posibles:** {pacientes}")
 
-    st.latex(r"\lambda = \frac{\ln(2)}{T_{1/2}}")
-    st.latex(fr"T_{{1/2}} = {T_half} \text{{ h}} = {T_half*60:.2f} \text{{ min}}")
-    st.latex(fr"\lambda = \frac{{0.693}}{{{T_half*60:.2f}}}")
-    st.latex(fr"A(t) = {A0} \, e^{{-{lam:.6e} \cdot {delta_min:.1f}}} = {At:.2f}")
+    # Detalle de cálculos (fórmulas aplicadas con valores)
+    st.markdown("### Detalle de cálculos — fórmulas y valores aplicados")
+    st.markdown(f"- T_{{1/2}} = {T_half} h = {T_half*60:.2f} min")
+    st.markdown(f"- λ = ln(2) / T_{{1/2}}(min) = 0.693 / {T_half*60:.2f} = {lam:.6e} min⁻¹")
+    st.markdown(f"- A(t) = A₀ · e^(-λ·t) = {A0} · e^(-{lam:.6e} · {delta_min:.1f}) = {At:.2f} MBq")
+    st.markdown(f"- Volumen por paciente = dosis / concentración = {dosis:.2f} / {conc:.2f} = {vol_paciente:.2f} mL")
+    st.markdown(f"- Volumen total disponible = A(t) / concentración = {At:.2f} / {conc:.2f} = {vol_total:.2f} mL")
+    st.markdown(f"- Pacientes posibles = floor(A(t) / dosis) = floor({At:.2f} / {dosis:.2f}) = {pacientes}")
+
 

@@ -172,3 +172,13 @@ if st.button("Calcular"):
     st.write(f"**Volumen total disponible:** {vol_total:.2f} mL")
     st.write(f"**Pacientes posibles:** {pacientes}")
 
+    # Detalle de cálculos (fórmulas aplicadas con valores)
+    st.markdown("### Detalle de cálculos — fórmulas y valores aplicados")
+    st.markdown(f"- T_{{1/2}} = {T_half} h = {T_half*60:.2f} min")
+    st.markdown(f"- λ = ln(2) / T_{{1/2}}(min) = 0.693 / {T_half*60:.2f} = {lam:.6e} min⁻¹")
+    st.markdown(f"- A(t) = A₀ · e^(-λ·t) = {A0} · e^(-{lam:.6e} · {delta_min:.1f}) = {At:.2f} MBq")
+    st.markdown(f"- Volumen por paciente = dosis / concentración = {dosis:.2f} / {conc:.2f} = {vol_paciente:.2f} mL")
+    st.markdown(f"- Volumen total disponible = A(t) / concentración = {At:.2f} / {conc:.2f} = {vol_total:.2f} mL")
+    st.markdown(f"- Pacientes posibles = floor(A(t) / dosis) = floor({At:.2f} / {dosis:.2f}) = {pacientes}")
+
+
